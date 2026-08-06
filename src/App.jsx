@@ -1,55 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, RotateCcw, Flame, BookMarked } from 'lucide-react'; //THESE ARE USED FOR THE ICONS WITHIN THE APPLICATION
 import LEVELS from "./wordBank.js";
+import { todayKey, computeStreak, formatDateLabel, resolvePointer} from "./dayEngine.js";
 
 const STORAGE_KEY = 'vocab-cabinet-state-v1';
-
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatDateLabel(key) {
-  const [y, m, d] = key.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function resolvePointer(level, pointer) {
-  let L = level;
-  let P = pointer;
-  while (P >= LEVELS[L - 1].words.length) {
-    if (L < LEVELS.length) {
-      L += 1;
-      P = 0;
-    } else {
-      P = LEVELS[L - 1].words.length - 1;
-      break;
-    }
-  }
-  return { level: L, pointer: P };
-}
-
-function computeStreak(history) {
-  const byDate = new Map(history.map((h) => [h.date, h]));
-  let streak = 0;
-  const cursor = new Date();
-  // if today has no entry yet, start counting from yesterday
-  if (!byDate.has(todayKey())) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  while (true) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-    const entry = byDate.get(key);
-    if (entry && entry.used) {
-      streak += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
 
 export default function VocabCabinet() {
   const [loading, setLoading] = useState(true);
@@ -85,15 +39,19 @@ export default function VocabCabinet() {
       loaded = null;
     }
 
-    const key = todayKey();
-    if (!loaded) {
-      loaded = { level: 1, pointer: 0, lastAssignedDate: key, history: [] };
-      await persist(loaded);
-    } else if (loaded.lastAssignedDate !== key) {
-      const advanced = resolvePointer(loaded.level, loaded.pointer + 1);
-      loaded = { ...loaded, level: advanced.level, pointer: advanced.pointer, lastAssignedDate: key };
-      await persist(loaded);
-    }
+    const key = todayKey(); //creating a new box that stores whatever the actual result is from the function 'todayKey()'
+      if (!loaded) { //If nothing is stored in 'loaded' box
+        loaded = { level: 1, pointer: 0, lastAssignedDate: key, history: [] }; //place level 1 in the box, track from
+
+        await persist(loaded); // wait before data saves into the store (persist) is a function that saves data permanently
+     }
+
+      else if (loaded.lastAssignedDate !== key) { //reach inside loaded defined in line 91 and check if this date is not equal to key)
+        const advanced= resolvePointer(loaded.level, loaded.pointer + 1);
+
+        loaded = {...loaded, level: advanced.level, pointer: advanced.pointer, lastAssignedDate: key}; //Make a copy of everything but update the level, the word position and the date
+        await persist(loaded);
+      }
 
     setState(loaded);
     const todays = loaded.history.find((h) => h.date === key);
